@@ -1,0 +1,147 @@
+#
+# Copyright IBM Corp. All Rights Reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+version: '2'
+
+services:
+
+  elm-ca-org1:
+    image: hyperledger/fabric-ca
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-elmorg1
+      - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/elmca.elmorg1.elm.com-cert.pem
+      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/8fe6642df0a0954d9e506faf2bcec75a0b87c21679ac8bcc60514fe1bae639f0_sk
+      - FABRIC_CA_SERVER_TLS_ENABLED=true
+      - FABRIC_CA_SERVER_TLS_CERTFILE=/etc/hyperledger/fabric-ca-server-config/elmca.elmorg1.elm.com-cert.pem
+      - FABRIC_CA_SERVER_TLS_KEYFILE=/etc/hyperledger/fabric-ca-server-config/8fe6642df0a0954d9e506faf2bcec75a0b87c21679ac8bcc60514fe1bae639f0_sk
+    ports:
+      - "6054:7054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ./channel/crypto-config/peerOrganizations/elmorg1.elm.com/ca/:/etc/hyperledger/fabric-ca-server-config
+    container_name: ca_peerElmOrg1
+
+  elm-ca-org2:
+    image: hyperledger/fabric-ca
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-elmorg2
+      - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/elmca.elmorg2.elm.com-cert.pem
+      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/7bf47ebb90d96b191c1588971b69f0852f625e70d8315f278e002edd87caaad6_sk
+      - FABRIC_CA_SERVER_TLS_ENABLED=true
+      - FABRIC_CA_SERVER_TLS_CERTFILE=/etc/hyperledger/fabric-ca-server-config/elmca.elmorg2.elm.com-cert.pem
+      - FABRIC_CA_SERVER_TLS_KEYFILE=/etc/hyperledger/fabric-ca-server-config/7bf47ebb90d96b191c1588971b69f0852f625e70d8315f278e002edd87caaad6_sk
+    ports:
+      - "8054:7054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ./channel/crypto-config/peerOrganizations/elmorg2.elm.com/ca:/etc/hyperledger/fabric-ca-server-config
+    container_name: ca_peerElmOrg2
+
+  orderer.elm.com:
+    container_name: orderer.elm.com
+    extends:
+      file:   base.yaml
+      service: orderer-base
+    image: hyperledger/fabric-orderer
+    environment:
+      - FABRIC_LOGGING_SPEC=debug
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_GENESISMETHOD=file
+      - ORDERER_GENERAL_GENESISFILE=/etc/hyperledger/configtx/genesis.block
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/etc/hyperledger/crypto/orderer/msp
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/etc/hyperledger/crypto/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/etc/hyperledger/crypto/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/etc/hyperledger/crypto/orderer/tls/ca.crt, /etc/hyperledger/crypto/peerOrg1/tls/ca.crt, /etc/hyperledger/crypto/peerOrg2/tls/ca.crt]
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/orderers
+    command: orderer
+    ports:
+      - 7050:7050
+    volumes:
+        - ./channel/channel-artifacts:/etc/hyperledger/configtx
+        - ./channel/crypto-config/ordererOrganizations/elm.com/orderers/orderer.elm.com/tls/:/var/hyperledger/orderer/tls
+        - ./channel/crypto-config/ordererOrganizations/elm.com/orderers/orderer.elm.com/msp:/var/hyperledger/orderer/msp
+        - ./channel/crypto-config/ordererOrganizations/elm.com/orderers/orderer.elm.com/:/etc/hyperledger/crypto/orderer
+        - ./channel/crypto-config/peerOrganizations/elmorg1.elm.com/peers/peer0.elmorg1.elm.com/:/etc/hyperledger/crypto/peerOrg1
+        - ./channel/crypto-config/peerOrganizations/elmorg2.elm.com/peers/peer0.elmorg2.elm.com/:/etc/hyperledger/crypto/peerOrg2
+    
+  peer0.elmorg1.elm.com:
+    container_name: peer0.elmorg1.elm.com
+    extends:
+      file:   base.yaml
+      service: peer-base
+    environment:
+      - CORE_PEER_ID=peer0.elmorg1.elm.com
+      - CORE_PEER_LOCALMSPID=elmOrg1MSP
+      - CORE_PEER_ADDRESS=peer0.elmorg1.elm.com:7051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.elmorg1.elm.com:7051      
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.elmorg1.elm.com:7051
+    ports:
+      - 7051:7051
+      - 7053:7053
+    volumes:
+        - ./channel/crypto-config/peerOrganizations/elmorg1.elm.com/peers/peer0.elmorg1.elm.com/:/etc/hyperledger/crypto/peer
+    depends_on:
+      - orderer.elm.com
+
+  peer1.elmorg1.elm.com:
+    container_name: peer1.elmorg1.elm.com
+    extends:
+      file:   base.yaml
+      service: peer-base
+    environment:
+      - CORE_PEER_ID=peer1.elmorg1.elm.com
+      - CORE_PEER_LOCALMSPID=elmOrg1MSP
+      - CORE_PEER_ADDRESS=peer1.elmorg1.elm.com:7051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.elmorg1.elm.com:7051      
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.elmorg1.elm.com:7051
+    ports:
+      - 7056:7051
+      - 7058:7053
+    volumes:
+        - ./channel/crypto-config/peerOrganizations/elmorg1.elm.com/peers/peer1.elmorg1.elm.com/:/etc/hyperledger/crypto/peer
+    depends_on:
+      - orderer.elm.com
+
+  peer0.elmorg2.elm.com:
+    container_name: peer0.elmorg2.elm.com
+    extends:
+      file:   base.yaml
+      service: peer-base
+    environment:
+      - CORE_PEER_ID=peer0.elmorg2.elm.com
+      - CORE_PEER_LOCALMSPID=elmOrg2MSP
+      - CORE_PEER_ADDRESS=peer0.elmorg2.elm.com:7051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.elmorg2.elm.com:7051      
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.elmorg2.elm.com:7051
+    ports:
+      - 8051:7051
+      - 8053:7053
+    volumes:
+        - ./channel/crypto-config/peerOrganizations/elmorg2.elm.com/peers/peer0.elmorg2.elm.com/:/etc/hyperledger/crypto/peer
+    depends_on:
+      - orderer.elm.com
+
+  peer1.elmorg2.elm.com:
+    container_name: peer1.elmorg2.elm.com
+    extends:
+      file:   base.yaml
+      service: peer-base
+    environment:
+      - CORE_PEER_ID=peer1.elmorg2.elm.com
+      - CORE_PEER_LOCALMSPID=elmOrg2MSP
+      - CORE_PEER_ADDRESS=peer1.elmorg2.elm.com:7051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.elmorg2.elm.com:7051      
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.elmorg2.elm.com:7051
+    ports:
+      - 8056:7051
+      - 8058:7053
+    volumes:
+        - ./channel/crypto-config/peerOrganizations/elmorg2.elm.com/peers/peer1.elmorg2.elm.com/:/etc/hyperledger/crypto/peer
+    depends_on:
+      - orderer.elm.com
